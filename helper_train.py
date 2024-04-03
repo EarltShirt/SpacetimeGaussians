@@ -56,6 +56,9 @@ def getrenderpip(option="train_ours_full"):
     
     elif option == "train_mine_full":
         from thirdparty.gaussian_splatting.renderer import train_mine_render
+        from diff_gaussian_rasterization import GaussianRasterizationSettings
+        from diff_gaussian_rasterization import GaussianRasterizer
+        return train_mine_render, GaussianRasterizationSettings, GaussianRasterizer
 
 
     elif option == "train_ours_lite":
