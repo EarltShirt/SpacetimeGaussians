@@ -14,6 +14,7 @@ import sys
 from datetime import datetime
 import numpy as np
 import random
+from pointops2.functions.pointops import furthestsampling, knnquery
 
 def inverse_sigmoid(x):
     return torch.log(x/(1-x))
@@ -180,6 +181,39 @@ def build_scaling_rotation(s, r):
     L = R @ L
     return L
 
+def build_rotation_4d(l, r):
+    l_norm = torch.norm(l, dim=-1, keepdim=True)
+    r_norm = torch.norm(r, dim=-1, keepdim=True)
+
+    q_l = l / l_norm
+    q_r = r / r_norm
+
+    a, b, c, d = q_l.unbind(-1)
+    p, q, r, s = q_r.unbind(-1)
+
+    M_l = torch.stack([a,-b,-c,-d,
+                       b, a,-d, c,
+                       c, d, a,-b,
+                       d,-c, b, a]).view(4,4,-1).permute(2,0,1)
+    M_r = torch.stack([ p, q, r, s,
+                       -q, p,-s, r,
+                       -r, s, p,-q,
+                       -s,-r, q, p]).view(4,4,-1).permute(2,0,1)
+    A = M_l @ M_r
+    return A
+
+def build_scaling_rotation_4d(s, l, r):
+    L = torch.zeros((s.shape[0], 4, 4), dtype=torch.float, device="cuda")
+    R = build_rotation_4d(l, r)
+
+    L[:,0,0] = s[:,0]
+    L[:,1,1] = s[:,1]
+    L[:,2,2] = s[:,2]
+    L[:,3,3] = s[:,3]
+
+    L = R @ L
+    return L
+
 def safe_state(silent):
     old_f = sys.stdout
     class F:
@@ -202,3 +236,29 @@ def safe_state(silent):
     np.random.seed(0)
     torch.manual_seed(0)
     torch.cuda.set_device(torch.device("cuda:0"))
+
+def knn(x, src, k, transpose=False):
+    if transpose:
+        x = x.transpose(1, 2).contiguous()
+        src = src.transpose(1, 2).contiguous()
+    b, n, _ = x.shape
+    m = src.shape[1]
+    x = x.view(-1, 3)
+    src = src.view(-1, 3)
+    x_offset = torch.full((b,), n, dtype=torch.long, device=x.device)
+    src_offset = torch.full((b,), m, dtype=torch.long, device=x.device)
+    x_offset = torch.cumsum(x_offset, dim=0).int()
+    src_offset = torch.cumsum(src_offset, dim=0).int()
+    idx, dists = knnquery(k, src, x, src_offset, x_offset)
+    idx = idx.view(b, n, k) - (src_offset - m)[:, None, None]
+    return idx.long(), dists.view(b, n, k)
+    
+def fps(x, k):
+    b, n, _ = x.shape
+    x = x.view(-1, 3).contiguous()
+    offset = torch.full((b,), n, dtype=torch.long, device=x.device)
+    new_offset = torch.full((b,), k, dtype=torch.long, device=x.device)
+    offset = torch.cumsum(offset, dim=0).int()
+    new_offset = torch.cumsum(new_offset, dim=0).int()
+    idx = furthestsampling(x, offset, new_offset).long()
+    return idx

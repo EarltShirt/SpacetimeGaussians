@@ -53,6 +53,9 @@ def getrenderpip(option="train_ours_full"):
         from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
         from diff_gaussian_rasterization_ch9 import GaussianRasterizer  
         return train_ours_full, GaussianRasterizationSettings, GaussianRasterizer
+    
+    elif option == "train_mine_full":
+        from thirdparty.gaussian_splatting.renderer import train_mine_render
 
 
     elif option == "train_ours_lite":
@@ -108,6 +111,8 @@ def getrenderpip(option="train_ours_full"):
 def getmodel(model="oursfull"):
     if model == "ours_full":
         from  thirdparty.gaussian_splatting.scene.oursfull import GaussianModel
+    elif model == "mine_full":
+        from thirdparty.gaussian_splatting.scene.gaussian_model_from_4dgaussian_splatting import GaussianModel
     elif model == "ours_lite":
         from  thirdparty.gaussian_splatting.scene.ourslite import GaussianModel
     else:
